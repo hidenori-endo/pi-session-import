@@ -1,0 +1,38 @@
+{
+  "name": "pi-session-import",
+  "version": "0.1.0",
+  "description": "Search your Claude Code and Codex CLI history in natural language and import any conversation into pi as a pi session",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "sessions",
+    "import"
+  ],
+  "license": "MIT",
+  "author": "hidenori-endo",
+  "homepage": "https://github.com/hidenori-endo/pi-session-import#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hidenori-endo/pi-session-import.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hidenori-endo/pi-session-import/issues"
+  },
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}
