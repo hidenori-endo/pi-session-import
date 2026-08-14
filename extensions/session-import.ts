@@ -2,10 +2,14 @@
  * session-import — bring Claude Code / Codex CLI conversations into pi as pi sessions.
  *
  * Provides:
- *   tool    find_sessions   search both agents' sessions by content, cwd and recency
- *   tool    import_session  convert a chosen session into a pi session file
- *   command /import         import by keywords or ref, then switch to the new session
- *   command /import-open    open the session imported most recently by the tool
+ *   tool    find_sessions    search both agents' sessions by content, cwd and recency
+ *   tool    import_session   convert a chosen session into a pi session file
+ *   command /session-import  import by keywords or ref, then switch to the new session
+ *   command /import-open     open the session imported most recently by the tool
+ *
+ * The command is deliberately not named /import: pi's interactive mode matches its
+ * built-in /import (JSONL file import) before extension commands are dispatched, so a
+ * command registered under that name is never reached.
  */
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -776,7 +780,11 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 			"Convert a Claude Code or Codex session into a pi session file so the user can continue it in pi. " +
 			"Pass a ref from find_sessions ('claude:<id>' / 'codex:<id>') or an absolute path to a .jsonl session file. " +
 			"The new session is written under the current working directory's pi session store; it does NOT switch the active session — " +
-			"tell the user to run /import-open (or pi -r) to open it.",
+			"tell the user to run /import-open (or pi -r) to open it. " +
+			"The user can also do the whole thing in one step with " +
+			"/session-import <keywords|claude:id|codex:id|path.jsonl>. " +
+			"Never tell the user to run /import — that is pi's built-in JSONL file import, it is handled before this " +
+			"extension is reached, and it fails on a 'claude:<id>' / 'codex:<id>' ref.",
 		parameters: Type.Object({
 			ref: Type.String({ description: "'claude:<id>', 'codex:<id>', or an absolute path to the source .jsonl" }),
 			mode: Type.Optional(
@@ -813,7 +821,7 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerCommand("import", {
+	pi.registerCommand("session-import", {
 		description: "Import a Claude Code / Codex session into pi (keywords or claude:<id> / codex:<id>)",
 		getArgumentCompletions: (prefix) => {
 			const hits = searchSessions({ query: prefix, limit: 20 });
@@ -847,7 +855,10 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 					words.push(part);
 				}
 				if (words.length === 0) {
-					ctx.ui.notify("Usage: /import <keywords|claude:id|codex:id|path.jsonl> [--mode compact|strict] [--turns N]", "error");
+					ctx.ui.notify(
+						"Usage: /session-import <keywords|claude:id|codex:id|path.jsonl> [--mode compact|strict] [--turns N]",
+						"error",
+					);
 					return;
 				}
 
@@ -894,7 +905,7 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 		description: "Open the session imported most recently by import_session",
 		handler: async (_args: string, ctx: ExtensionCommandContext) => {
 			if (!lastImported || !fs.existsSync(lastImported)) {
-				ctx.ui.notify("Nothing imported yet — run /import or the import_session tool first.", "error");
+				ctx.ui.notify("Nothing imported yet — run /session-import or the import_session tool first.", "error");
 				return;
 			}
 			await ctx.switchSession(lastImported);

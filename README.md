@@ -29,11 +29,16 @@ Run `/reload` if pi is already running.
 ### Or drive it yourself
 
 ```
-/import <keywords>                     pick from matches, import, and switch to it
-/import codex:019ff377 --turns 100     import a specific session
-/import claude:46b90abf --mode strict  include tool calls/results as text
-/import-open                           open what the tool imported last
+/session-import <keywords>                     pick from matches, import, and switch to it
+/session-import codex:019ff377 --turns 100     import a specific session
+/session-import claude:46b90abf --mode strict  include tool calls/results as text
+/import-open                                   open what the tool imported last
 ```
+
+> The command is `/session-import`, not `/import`. pi's interactive mode matches its own
+> built-in `/import` (import a pi JSONL file from disk) before extension commands are
+> dispatched, so an extension command registered as `import` would never run — you would
+> get `File not found: <cwd>/claude:<id>` instead.
 
 ## What it registers
 
@@ -41,7 +46,7 @@ Run `/reload` if pi is already running.
 |---|---|---|
 | tool | `find_sessions` | Search both agents by content keywords, `cwd`, and recency. Returns refs like `codex:019ff377`. |
 | tool | `import_session` | Convert a session into a pi session file. Does not switch sessions (tools cannot). |
-| command | `/import` | Keyword or ref → import → `switchSession` into it. |
+| command | `/session-import` | Keyword or ref → import → `switchSession` into it. |
 | command | `/import-open` | Open the session imported most recently by the tool. |
 
 ### Options
@@ -70,6 +75,17 @@ Imported sessions are written under the **current** working directory's pi sessi
 - Conversation text only. Tool execution state, file diffs, and checkpoints are not restored.
 - The imported session records the model that was active when you ran the import, not the model the original session used.
 - Requires Node's `node:sqlite` for the fast Codex path (Node 22.5+); without it the extension falls back to scanning rollout files.
+
+## Development
+
+```bash
+npm install
+npm test
+```
+
+The tests run on Node's built-in runner with type stripping (Node 22.18+ / 24+), against a
+throwaway `$HOME` holding a synthetic Claude Code transcript — nothing reads or writes your
+real `~/.claude`, `~/.codex`, or `~/.pi`.
 
 ## License
 
