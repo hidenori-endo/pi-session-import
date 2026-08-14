@@ -29,16 +29,18 @@ Run `/reload` if pi is already running.
 ### Or drive it yourself
 
 ```
-/session-import <keywords>                     pick from matches, import, and switch to it
-/session-import codex:019ff377 --turns 100     import a specific session
-/session-import claude:46b90abf --mode strict  include tool calls/results as text
+/resume-session <keywords>                     pick from matches, import, and switch to it
+/resume-session codex:019ff377 --turns 100     import a specific session
+/resume-session claude:46b90abf --mode strict  include tool calls/results as text
 /import-open                                   open what the tool imported last
 ```
 
-> The command is `/session-import`, not `/import`. pi's interactive mode matches its own
-> built-in `/import` (import a pi JSONL file from disk) before extension commands are
-> dispatched, so an extension command registered as `import` would never run — you would
-> get `File not found: <cwd>/claude:<id>` instead.
+> The command is `/resume-session` — it reads for a Claude Code or Codex session what pi's
+> `/resume` reads for a pi one. It is deliberately not `/import`: pi's interactive mode
+> matches its own built-in `/import` (import a pi JSONL file from disk) before extension
+> commands are dispatched, so a command registered as `import` never runs — you would get
+> `File not found: <cwd>/claude:<id>` instead. `/resume` is matched by exact equality, so
+> `/resume-session` reaches this extension.
 
 ## What it registers
 
@@ -46,7 +48,7 @@ Run `/reload` if pi is already running.
 |---|---|---|
 | tool | `find_sessions` | Search both agents by content keywords, `cwd`, and recency. Returns refs like `codex:019ff377`. |
 | tool | `import_session` | Convert a session into a pi session file. Does not switch sessions (tools cannot). |
-| command | `/session-import` | Keyword or ref → import → `switchSession` into it. |
+| command | `/resume-session` | Keyword or ref → import → `switchSession` into it. |
 | command | `/import-open` | Open the session imported most recently by the tool. |
 
 ### Options

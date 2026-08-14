@@ -223,9 +223,9 @@ function makeCtx() {
 }
 
 describe("registered commands", () => {
-	it("registers /session-import and /import-open, and not /import", () => {
+	it("registers /resume-session and /import-open, and not /import", () => {
 		const { commands, tools } = register();
-		assert.ok(commands.has("session-import"));
+		assert.ok(commands.has("resume-session"));
 		assert.ok(commands.has("import-open"));
 		assert.ok(
 			!commands.has("import"),
@@ -234,11 +234,11 @@ describe("registered commands", () => {
 		assert.deepEqual([...tools.keys()].sort(), ["find_sessions", "import_session"]);
 	});
 
-	it("/session-import claude:<id> imports and switches to the new session", async () => {
+	it("/resume-session claude:<id> imports and switches to the new session", async () => {
 		const { commands } = register();
 		const { ctx, switched, notifications } = makeCtx();
 
-		await commands.get("session-import")!.handler(`claude:${SESSION_ID}`, ctx);
+		await commands.get("resume-session")!.handler(`claude:${SESSION_ID}`, ctx);
 
 		assert.equal(switched.length, 1, `expected one switchSession, got notifications: ${JSON.stringify(notifications)}`);
 		const outPath = switched[0]!;
@@ -248,11 +248,11 @@ describe("registered commands", () => {
 		assert.ok(notifications.some((n) => n.level === "info" && n.message.includes("Imported claude session")));
 	});
 
-	it("/session-import passes --mode and --turns through", async () => {
+	it("/resume-session passes --mode and --turns through", async () => {
 		const { commands } = register();
 		const { ctx, switched } = makeCtx();
 
-		await commands.get("session-import")!.handler(`--mode strict --turns 3 claude:${SESSION_ID}`, ctx);
+		await commands.get("resume-session")!.handler(`--mode strict --turns 3 claude:${SESSION_ID}`, ctx);
 
 		const records = readSession(switched[0]!);
 		// --turns reached importSession: 3 turns instead of the 4 a compact import would yield
@@ -261,23 +261,23 @@ describe("registered commands", () => {
 		assert.match(importedTurns(records)[0]!.text, /^\[tool_result\] /);
 	});
 
-	it("/session-import with no argument reports its own usage, not /import", async () => {
+	it("/resume-session with no argument reports its own usage, not /import", async () => {
 		const { commands } = register();
 		const { ctx, switched, notifications } = makeCtx();
 
-		await commands.get("session-import")!.handler("   ", ctx);
+		await commands.get("resume-session")!.handler("   ", ctx);
 
 		assert.equal(switched.length, 0);
 		assert.equal(notifications.length, 1);
 		assert.equal(notifications[0]!.level, "error");
-		assert.match(notifications[0]!.message, /^Usage: \/session-import /);
+		assert.match(notifications[0]!.message, /^Usage: \/resume-session /);
 	});
 
-	it("/session-import surfaces an unresolvable ref as an error", async () => {
+	it("/resume-session surfaces an unresolvable ref as an error", async () => {
 		const { commands } = register();
 		const { ctx, switched, notifications } = makeCtx();
 
-		await commands.get("session-import")!.handler("claude:ffffffff", ctx);
+		await commands.get("resume-session")!.handler("claude:ffffffff", ctx);
 
 		assert.equal(switched.length, 0);
 		assert.equal(notifications[0]!.level, "error");
@@ -291,7 +291,7 @@ describe("registered commands", () => {
 		await commands.get("import-open")!.handler("", ctx);
 
 		assert.equal(switched.length, 0);
-		assert.match(notifications[0]!.message, /\/session-import/);
+		assert.match(notifications[0]!.message, /\/resume-session/);
 	});
 
 	it("/import-open opens what import_session wrote", async () => {
@@ -310,7 +310,7 @@ describe("registered commands", () => {
 	it("import_session never points the user at pi's built-in /import", () => {
 		const { tools } = register();
 		const description: string = tools.get("import_session")!.description;
-		assert.ok(description.includes("/session-import"));
+		assert.ok(description.includes("/resume-session"));
 		assert.match(description, /Never tell the user to run \/import\b/);
 	});
 });
@@ -318,8 +318,8 @@ describe("registered commands", () => {
 describe("README", () => {
 	const readme = fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8");
 
-	it("documents /session-import", () => {
-		assert.ok(readme.includes("/session-import"));
+	it("documents /resume-session", () => {
+		assert.ok(readme.includes("/resume-session"));
 	});
 
 	it("has no /import usage example left in a code block", () => {
