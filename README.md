@@ -29,7 +29,8 @@ Run `/reload` if pi is already running.
 ### Or drive it yourself
 
 ```
-/resume-session <keywords>                     pick from matches, import, and switch to it
+/resume-session                                open a full-screen session list after Enter
+/resume-session <keywords>                     filter matches, import, and switch to it
 /resume-session codex:019ff377 --turns 100     import a specific session
 /resume-session claude:46b90abf --mode strict  include tool calls/results as text
 /import-open                                   open what the tool imported last
@@ -56,6 +57,11 @@ Run `/reload` if pi is already running.
 - `--mode compact` (default) — user/assistant messages only.
 - `--mode strict` — also include tool calls and tool results as text, truncated to 2000 chars each.
 - `--turns N` — import only the last N turns. Default 60, max 400.
+
+With no arguments, press Enter after `/resume-session` to open pi's full-screen session
+selector. It starts with sessions from the current folder; press Tab there to show all
+Claude Code and Codex sessions. The selector supports text search, sorting, and keyboard
+navigation just like pi's `/resume` screen.
 
 ## How it works
 
