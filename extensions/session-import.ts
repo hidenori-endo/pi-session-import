@@ -12,7 +12,8 @@
  * command registered under that name is never reached. /resume-session is safe — the
  * built-in /resume is matched by exact equality, not by prefix.
  */
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { SessionSelectorComponent } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, SessionInfo } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -43,6 +44,7 @@ const CACHE_FILE = path.join(os.homedir(), ".pi", "agent", "cache", "session-imp
 const HEAD_BYTES = 32 * 1024;
 const TAIL_BYTES = 16 * 1024;
 const TOOL_TEXT_CAP = 2000;
+const PICKER_LIMIT = 5000;
 
 /* ------------------------------------------------------------------ utils */
 
@@ -431,6 +433,59 @@ export function searchSessions(opts: SearchOptions): Candidate[] {
 export function formatCandidate(c: Candidate): string {
 	const head = `${c.agent}:${c.id.slice(0, 8)}  ${formatAge(c.updatedMs)}  ${c.cwd || "?"}${c.branch ? `  branch:${c.branch}` : ""}  ${formatBytes(c.sizeBytes)}`;
 	return `${head}\n    first: ${squash(c.first, 160) || "(none)"}\n    last:  ${squash(c.last, 120) || "(none)"}`;
+}
+
+/** Adapt an external transcript to pi's built-in session picker data shape. */
+function toPickerSession(c: Candidate): SessionInfo {
+	const updated = new Date(c.updatedMs || Date.now());
+	return {
+		path: c.file,
+		id: `${c.agent}:${c.id}`,
+		cwd: c.cwd,
+		created: updated,
+		modified: updated,
+		messageCount: 0,
+		firstMessage: c.first || c.last || "(no first message)",
+		allMessagesText: c.haystack,
+	};
+}
+
+/**
+ * Open the same full-screen selector pi uses for /resume, but backed by
+ * Claude Code and Codex transcripts instead of pi JSONL files.
+ */
+async function pickSession(ctx: ExtensionCommandContext, hits: Candidate[]): Promise<Candidate | undefined> {
+	if (hits.length === 0) return undefined;
+
+	if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
+		const sessions = hits.map(toPickerSession);
+		const current = ctx.cwd ? sessions.filter((session) => session.cwd === ctx.cwd) : sessions;
+		const initial = current.length > 0 ? current : sessions;
+		const selectedPath = await ctx.ui.custom<string | null>((tui, _theme, keybindings, done) => {
+			const selector = new SessionSelectorComponent(
+				() => Promise.resolve(initial),
+				() => Promise.resolve(sessions),
+				(path) => done(path),
+				() => done(null),
+				() => done(null),
+				() => tui.requestRender(),
+				{ keybindings },
+			);
+			// These are external source files, so the shared selector must be read-only.
+			const sessionList = selector.getSessionList() as unknown as {
+				onDeleteSession?: (sessionPath: string) => Promise<void>;
+			};
+			sessionList.onDeleteSession = async () => {};
+			return selector;
+		});
+		return selectedPath ? hits.find((candidate) => candidate.file === selectedPath) : undefined;
+	}
+
+	// Keep a small fallback for non-TUI hosts and older pi versions.
+	const options = hits.map((candidate) => `${candidate.agent}:${candidate.id}  ${squash(candidate.first, 100) || "(no first message)"}  ${candidate.cwd || "?"}`);
+	const selected = await ctx.ui.select("Resume Claude Code / Codex session", options);
+	const index = selected ? options.indexOf(selected) : -1;
+	return index >= 0 ? hits[index] : undefined;
 }
 
 /* ------------------------------------------------------------ ref resolution */
@@ -823,7 +878,7 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("resume-session", {
-		description: "Import a Claude Code / Codex session into pi (keywords or claude:<id> / codex:<id>)",
+		description: "Open the Claude Code / Codex session picker, or import one by keyword/ref",
 		getArgumentCompletions: (prefix) => {
 			const hits = searchSessions({ query: prefix, limit: 20 });
 			if (hits.length === 0) return null;
@@ -856,11 +911,14 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 					words.push(part);
 				}
 				if (words.length === 0) {
-					ctx.ui.notify(
-						"Usage: /resume-session <keywords|claude:id|codex:id|path.jsonl> [--mode compact|strict] [--turns N]",
-						"error",
-					);
-					return;
+					const hits = searchSessions({ limit: PICKER_LIMIT });
+					if (hits.length === 0) {
+						ctx.ui.notify("No Claude Code or Codex sessions found.", "error");
+						return;
+					}
+					const picked = await pickSession(ctx, hits);
+					if (!picked) return;
+					words.push(`${picked.agent}:${picked.id}`);
 				}
 
 				const raw = words.join(" ");
@@ -872,15 +930,9 @@ export default function sessionImportExtension(pi: ExtensionAPI) {
 						ctx.ui.notify(`No session matches: ${raw}`, "error");
 						return;
 					}
-					const picked = await ctx.ui.select(
-						"Import which session?",
-						hits.map((c) => ({
-							value: `${c.agent}:${c.id}`,
-							label: `[${c.agent}] ${squash(c.first, 70)} [${formatAge(c.updatedMs)}] [${c.cwd}]`,
-						})),
-					);
+					const picked = await pickSession(ctx, hits);
 					if (!picked) return;
-					ref = typeof picked === "string" ? picked : (picked as { value: string }).value;
+					ref = `${picked.agent}:${picked.id}`;
 				}
 
 				const result = importSession({

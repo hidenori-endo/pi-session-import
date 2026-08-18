@@ -203,17 +203,25 @@ function register(): { commands: Map<string, Registered>; tools: Map<string, any
 	return { commands, tools };
 }
 
-function makeCtx() {
+function makeCtx(customResult: string | null = null) {
 	const notifications: Array<{ level: string; message: string }> = [];
 	const switched: string[] = [];
+	const customCalls: number[] = [];
 	return {
 		notifications,
 		switched,
+		customCalls,
 		ctx: {
 			ui: {
 				notify: (message: string, level: string) => notifications.push({ level, message }),
 				select: async () => null,
+				custom: async () => {
+					customCalls.push(1);
+					return customResult;
+				},
 			},
+			mode: "tui",
+			cwd: SOURCE_CWD,
 			model: { provider: "test-provider", id: "test/model-1" },
 			switchSession: async (file: string) => {
 				switched.push(file);
@@ -261,16 +269,25 @@ describe("registered commands", () => {
 		assert.match(importedTurns(records)[0]!.text, /^\[tool_result\] /);
 	});
 
-	it("/resume-session with no argument reports its own usage, not /import", async () => {
+	it("/resume-session with no argument opens the full-screen picker", async () => {
 		const { commands } = register();
-		const { ctx, switched, notifications } = makeCtx();
+		const { ctx, switched, notifications, customCalls } = makeCtx();
 
 		await commands.get("resume-session")!.handler("   ", ctx);
 
 		assert.equal(switched.length, 0);
-		assert.equal(notifications.length, 1);
-		assert.equal(notifications[0]!.level, "error");
-		assert.match(notifications[0]!.message, /^Usage: \/resume-session /);
+		assert.equal(notifications.length, 0);
+		assert.deepEqual(customCalls, [1]);
+	});
+
+	it("/resume-session imports the session selected in the picker", async () => {
+		const { commands } = register();
+		const { ctx, switched, notifications } = makeCtx(fixtureFile);
+
+		await commands.get("resume-session")!.handler("", ctx);
+
+		assert.equal(switched.length, 1, JSON.stringify(notifications));
+		assert.deepEqual(importedTurns(readSession(switched[0]!)), EXPECTED_COMPACT_TURNS);
 	});
 
 	it("/resume-session surfaces an unresolvable ref as an error", async () => {
